@@ -13,7 +13,7 @@ namespace Angela
             Application.SetCompatibleTextRenderingDefault(false);
             
             // Iniciamos el Login
-            Application.Run(new frmLogin());
+            Application.Run(new Angela.frmLogin());
         }
     }
 }

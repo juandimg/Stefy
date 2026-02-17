@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using Angela;
 
 namespace Angela
 {
@@ -14,7 +15,7 @@ namespace Angela
         public frmLogin()
         {
             // 1. CONFIGURACIÓN DE LA VENTANA
-            this.Text = "Sistema Angela - Acceso";
+            this.Text = "Stefy";
             this.WindowState = FormWindowState.Maximized;
             this.BackColor = Color.FromArgb(255, 182, 193); // Rosa un poco más suave
 
@@ -39,7 +40,7 @@ namespace Angela
 
             // 4. ELEMENTOS INTERACTIVOS
             Label lblTitulo = new Label() { 
-                Text = "BIENVENIDA", 
+                Text = "BIENVENIDO A STEFY", 
                 Font = new Font("Arial", 22, FontStyle.Bold), 
                 ForeColor = Color.DeepPink,
                 Dock = DockStyle.Top, Height = 60, TextAlign = ContentAlignment.MiddleCenter 
@@ -71,7 +72,9 @@ namespace Angela
 
             btnIngresar.Click += (s, e) => {
                 if (txtUsuario.Text == "admin" && txtPassword.Text == "1234") {
-                    MessageBox.Show("¡Acceso Correcto!");
+                    this .Hide();
+                    Angela.Modulos ventanaModulos = new Angela.Modulos();
+                    ventanaModulos.Show();
                 } else {
                     MessageBox.Show("Credenciales incorrectas");
                 }
