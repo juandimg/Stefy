@@ -14,6 +14,7 @@ namespace Angela
         private Button btnAgregar, btnModificar, btnEliminar, btnLimpiar, btnBuscar, btnVolver;
         private DataGridView dgvProductos;
         private Label lblTotalProductos, lblValorTotal, lblStockBajo;
+        private Panel panelIzquierdo;
         private int idSeleccionado = -1;
 
         // Referencia al formulario padre
@@ -25,6 +26,9 @@ namespace Angela
             InicializarComponentes();
             CargarProductos();
             ActualizarReportes();
+            this.Shown += (s, e) => {
+                panelIzquierdo.Width = Math.Max(450, (int)(this.ClientSize.Width * 0.30));
+            };
         }
 
         private void InicializarComponentes()
@@ -71,12 +75,11 @@ namespace Angela
             panelSuperior.Controls.Add(btnVolver);
 
             // ===== PANEL PRINCIPAL (Formulario + Grid) =====
-            SplitContainer splitPrincipal = new SplitContainer()
+            panelIzquierdo = new Panel()
             {
-                Dock = DockStyle.Fill,
-                Orientation = Orientation.Vertical,
-                SplitterDistance = 350,
-                FixedPanel = FixedPanel.Panel1
+                Dock = DockStyle.Left,
+                Width = 450,
+                BackColor = Color.FromArgb(255, 240, 245)
             };
 
             // ----- PANEL IZQUIERDO: Formulario -----
@@ -85,6 +88,18 @@ namespace Angela
                 Dock = DockStyle.Fill,
                 Padding = new Padding(20),
                 AutoScroll = true
+            };
+
+            // Redimensiona los controles cuando el panel cambia de tamaño
+            panelForm.Resize += (s, e) => {
+                int ancho = panelForm.Width - 40;
+                if (ancho < 50) return;
+                foreach (Control ctrl in panelForm.Controls)
+                {
+                    if (ctrl is Label) continue;
+                    ctrl.Left = 20;
+                    ctrl.Width = ancho;
+                }
             };
 
             int yPos = 10;
@@ -100,7 +115,7 @@ namespace Angela
             cmbCategoria = new ComboBox()
             {
                 Location = new Point(20, yPos),
-                Size = new Size(280, controlHeight),
+                Size = new Size(360, controlHeight),
                 Font = new Font("Segoe UI", 11),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
@@ -165,7 +180,7 @@ namespace Angela
             btnLimpiar.Click += (s, e) => LimpiarCampos();
             panelForm.Controls.Add(btnLimpiar);
 
-            splitPrincipal.Panel1.Controls.Add(panelForm);
+            panelIzquierdo.Controls.Add(panelForm);
 
             // ----- PANEL DERECHO: Grid + Búsqueda + Reportes -----
             Panel panelDerecho = new Panel()
@@ -288,10 +303,9 @@ namespace Angela
             panelDerecho.Controls.Add(panelBusqueda);
             panelDerecho.Controls.Add(panelReportes);
 
-            splitPrincipal.Panel2.Controls.Add(panelDerecho);
-
-            // Orden correcto: primero Fill, luego Top (WinForms dockea del último al primero)
-            this.Controls.Add(splitPrincipal);
+            // Orden: Fill primero, luego Left, luego Top
+            this.Controls.Add(panelDerecho);
+            this.Controls.Add(panelIzquierdo);
             this.Controls.Add(panelSuperior);
         }
 
@@ -314,7 +328,7 @@ namespace Angela
             return new TextBox()
             {
                 Location = new Point(20, y),
-                Size = new Size(280, 35),
+                Size = new Size(360, 35),
                 Font = new Font("Segoe UI", 11)
             };
         }
@@ -325,7 +339,7 @@ namespace Angela
             {
                 Text = texto,
                 Location = new Point(20, y),
-                Size = new Size(280, 40),
+                Size = new Size(360, 40),
                 BackColor = color,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
