@@ -2,22 +2,31 @@ using System;
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
-using MySql.Data.MySqlClient;
+using MySqlConnector;
 
 namespace Angela
 {
     public class frmInventario : Form
     {
-        // Controles del formulario
-        private TextBox txtNombre, txtReferencia, txtTalla, txtPrecio, txtCantidad, txtBuscar;
-        private ComboBox cmbCategoria;
-        private Button btnAgregar, btnModificar, btnEliminar, btnLimpiar, btnBuscar, btnVolver;
+        // Paleta de colores
+        private static readonly Color ColorSidebar   = Color.FromArgb(28, 28, 45);
+        private static readonly Color ColorSidebarAlt= Color.FromArgb(38, 38, 60);
+        private static readonly Color ColorAccent    = Color.FromArgb(183, 28, 90);
+        private static readonly Color ColorAccentHov = Color.FromArgb(210, 50, 110);
+        private static readonly Color ColorFondo     = Color.FromArgb(242, 242, 248);
+        private static readonly Color ColorCard      = Color.White;
+        private static readonly Color ColorTextoSide = Color.FromArgb(190, 190, 210);
+        private static readonly Color ColorTextoLight= Color.FromArgb(240, 240, 255);
+
+        // Controles
+        private TextBox txtSubcategoria, txtMarca, txtReferencia, txtUnidades,
+                        txtDescripcion, txtPrecioCompra, txtPrecioVenta, txtBuscar;
+        private ComboBox cmbCategoria, cmbTalla;
+        private Button btnAgregar, btnModificar, btnEliminar, btnLimpiar, btnBuscar;
         private DataGridView dgvProductos;
         private Label lblTotalProductos, lblValorTotal, lblStockBajo;
         private Panel panelIzquierdo;
         private int idSeleccionado = -1;
-
-        // Referencia al formulario padre
         private Form formPadre;
 
         public frmInventario(Form padre)
@@ -26,218 +35,229 @@ namespace Angela
             InicializarComponentes();
             CargarProductos();
             ActualizarReportes();
-            this.Shown += (s, e) => {
-                panelIzquierdo.Width = Math.Max(450, (int)(this.ClientSize.Width * 0.30));
-            };
         }
 
         private void InicializarComponentes()
         {
-            // CONFIGURACIÓN DE LA VENTANA
-            this.Text = "Inventario - Angela Store";
+            this.Text = "Inventario — Stefy Store";
             this.WindowState = FormWindowState.Maximized;
-            this.BackColor = Color.FromArgb(255, 240, 245);
+            this.BackColor = ColorFondo;
             this.Font = new Font("Segoe UI", 10);
             this.FormClosed += (s, e) => { formPadre.Show(); };
 
-            // ===== PANEL SUPERIOR (Título + Volver) =====
-            Panel panelSuperior = new Panel()
+            // ── HEADER ────────────────────────────────────────────────────────
+            Panel header = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 70,
-                BackColor = Color.MediumVioletRed
+                Height = 62,
+                BackColor = ColorSidebar
             };
 
-            Label lblTitulo = new Label()
+            Button btnVolver = new Button
             {
-                Text = "INVENTARIO",
-                Font = new Font("Arial", 24, FontStyle.Bold),
-                ForeColor = Color.White,
+                Text = "‹  Volver",
+                Dock = DockStyle.Left,
+                Width = 110,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ColorSidebar,
+                ForeColor = ColorTextoSide,
+                Font = new Font("Segoe UI", 10),
+                Cursor = Cursors.Hand
+            };
+            btnVolver.FlatAppearance.BorderSize = 0;
+            btnVolver.Click += (s, e) => this.Close();
+
+            Label lblTitulo = new Label
+            {
+                Text = "GESTIÓN DE INVENTARIO",
+                Font = new Font("Segoe UI", 15, FontStyle.Bold),
+                ForeColor = ColorTextoLight,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-            btnVolver = new Button()
+            Label lblSubtitulo = new Label
             {
-                Text = "← VOLVER",
-                Dock = DockStyle.Left,
-                Width = 120,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.MediumVioletRed,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            btnVolver.FlatAppearance.BorderSize = 0;
-            btnVolver.Click += (s, e) => { this.Close(); };
-
-            panelSuperior.Controls.Add(lblTitulo);
-            panelSuperior.Controls.Add(btnVolver);
-
-            // ===== PANEL PRINCIPAL (Formulario + Grid) =====
-            panelIzquierdo = new Panel()
-            {
-                Dock = DockStyle.Left,
-                Width = 450,
-                BackColor = Color.FromArgb(255, 240, 245)
+                Text = "STEFY STORE",
+                Font = new Font("Segoe UI", 8),
+                ForeColor = ColorAccent,
+                Dock = DockStyle.Right,
+                Width = 110,
+                TextAlign = ContentAlignment.MiddleCenter
             };
 
-            // ----- PANEL IZQUIERDO: Formulario -----
-            Panel panelForm = new Panel()
+            header.Controls.Add(lblTitulo);
+            header.Controls.Add(btnVolver);
+            header.Controls.Add(lblSubtitulo);
+
+            // ── SIDEBAR (formulario) ───────────────────────────────────────────
+            panelIzquierdo = new Panel
+            {
+                Dock = DockStyle.Left,
+                Width = 390,
+                BackColor = ColorSidebar
+            };
+
+            Panel scrollable = new Panel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(20),
-                AutoScroll = true
+                AutoScroll = true,
+                Padding = new Padding(0)
             };
 
-            // Redimensiona los controles cuando el panel cambia de tamaño
-            panelForm.Resize += (s, e) => {
-                int ancho = panelForm.Width - 40;
-                if (ancho < 50) return;
-                foreach (Control ctrl in panelForm.Controls)
-                {
-                    if (ctrl is Label) continue;
-                    ctrl.Left = 20;
-                    ctrl.Width = ancho;
-                }
-            };
+            int x = 24, yPos = 0;
 
-            int yPos = 10;
-            int labelHeight = 25;
-            int controlHeight = 35;
-            int spacing = 10;
-
-           
-
-            // Categoría
-            panelForm.Controls.Add(CrearLabel("CATEGORÍA:", yPos));
-            yPos += labelHeight;
-            cmbCategoria = new ComboBox()
+            // Título del formulario
+            Label lblFormTitle = new Label
             {
-                Location = new Point(20, yPos),
-                Size = new Size(360, controlHeight),
-                Font = new Font("Segoe UI", 11),
-                DropDownStyle = ComboBoxStyle.DropDownList
+                Text = "NUEVO PRODUCTO",
+                Location = new Point(x, yPos + 18),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                ForeColor = ColorAccent
             };
-            cmbCategoria.Items.AddRange(new string[] { "Blusas", "Pantalones", "Vestidos", "Faldas", "Otro" });
-            cmbCategoria.SelectedIndex = 0;
-            panelForm.Controls.Add(cmbCategoria);
-            yPos += controlHeight + spacing;
+            scrollable.Controls.Add(lblFormTitle);
 
+            Panel divisor = new Panel
+            {
+                Location = new Point(x, yPos + 44),
+                Size = new Size(340, 1),
+                BackColor = ColorSidebarAlt
+            };
+            scrollable.Controls.Add(divisor);
+            yPos = 58;
 
-             // Nombre
-            panelForm.Controls.Add(CrearLabel("NOMBRE:", yPos));
-            yPos += labelHeight;
-            txtNombre = CrearTextBox(yPos);
-            panelForm.Controls.Add(txtNombre);
-            yPos += controlHeight + spacing;
+            // Campos del formulario
+            scrollable.Controls.Add(CrearLabelSide("Categoría", yPos)); yPos += 22;
+            cmbCategoria = CrearCombo(yPos, new[] { "Blusas", "Pantalones", "Vestidos", "Faldas", "Chaquetas", "Accesorios", "Otro" });
+            scrollable.Controls.Add(cmbCategoria); yPos += 42;
 
-            // Referencia
-            panelForm.Controls.Add(CrearLabel("REFERENCIA:", yPos));
-            yPos += labelHeight;
-            txtReferencia = CrearTextBox(yPos);
-            panelForm.Controls.Add(txtReferencia);
-            yPos += controlHeight + spacing;
+            scrollable.Controls.Add(CrearLabelSide("Subcategoría", yPos)); yPos += 22;
+            txtSubcategoria = CrearInput(yPos); scrollable.Controls.Add(txtSubcategoria); yPos += 42;
 
-            // Talla
-            panelForm.Controls.Add(CrearLabel("TALLA:", yPos));
-            yPos += labelHeight;
-            txtTalla = CrearTextBox(yPos);
-            panelForm.Controls.Add(txtTalla);
-            yPos += controlHeight + spacing;
+            scrollable.Controls.Add(CrearLabelSide("Marca", yPos)); yPos += 22;
+            txtMarca = CrearInput(yPos); scrollable.Controls.Add(txtMarca); yPos += 42;
 
-            // Precio
-            panelForm.Controls.Add(CrearLabel("PRECIO:", yPos));
-            yPos += labelHeight;
-            txtPrecio = CrearTextBox(yPos);
-            panelForm.Controls.Add(txtPrecio);
-            yPos += controlHeight + spacing;
+            scrollable.Controls.Add(CrearLabelSide("Referencia", yPos)); yPos += 22;
+            txtReferencia = CrearInput(yPos); scrollable.Controls.Add(txtReferencia); yPos += 42;
 
-            // Cantidad
-            panelForm.Controls.Add(CrearLabel("CANTIDAD:", yPos));
-            yPos += labelHeight;
-            txtCantidad = CrearTextBox(yPos);
-            panelForm.Controls.Add(txtCantidad);
-            yPos += controlHeight + spacing + 10;
+            scrollable.Controls.Add(CrearLabelSide("Talla", yPos)); yPos += 22;
+            cmbTalla = CrearCombo(yPos, new[] { "XS","S","M","L","XL","XXL","XXXL","6","8","10","12","14","16","18","Único" });
+            cmbTalla.SelectedIndex = 2;
+            scrollable.Controls.Add(cmbTalla); yPos += 42;
+
+            scrollable.Controls.Add(CrearLabelSide("Unidades en stock", yPos)); yPos += 22;
+            txtUnidades = CrearInput(yPos); scrollable.Controls.Add(txtUnidades); yPos += 42;
+
+            scrollable.Controls.Add(CrearLabelSide("Descripción", yPos)); yPos += 22;
+            txtDescripcion = CrearInput(yPos); scrollable.Controls.Add(txtDescripcion); yPos += 42;
+
+            // Precios en dos columnas
+            scrollable.Controls.Add(CrearLabelSide("Precio Compra", yPos)); yPos += 22;
+            txtPrecioCompra = CrearInput(yPos); scrollable.Controls.Add(txtPrecioCompra); yPos += 42;
+
+            scrollable.Controls.Add(CrearLabelSide("Precio Venta", yPos)); yPos += 22;
+            txtPrecioVenta = CrearInput(yPos); scrollable.Controls.Add(txtPrecioVenta); yPos += 52;
+
+            // Separador antes de botones
+            Panel div2 = new Panel
+            {
+                Location = new Point(x, yPos),
+                Size = new Size(340, 1),
+                BackColor = ColorSidebarAlt
+            };
+            scrollable.Controls.Add(div2);
+            yPos += 14;
 
             // Botones CRUD
-            btnAgregar = CrearBoton("AGREGAR", yPos, Color.MediumVioletRed);
+            btnAgregar = CrearBotonSide("+ Agregar Producto", yPos, ColorAccent, ColorAccentHov);
             btnAgregar.Click += BtnAgregar_Click;
-            panelForm.Controls.Add(btnAgregar);
-            yPos += 50;
+            scrollable.Controls.Add(btnAgregar); yPos += 46;
 
-            btnModificar = CrearBoton("MODIFICAR", yPos, Color.HotPink);
+            btnModificar = CrearBotonSide("✎  Modificar Seleccionado", yPos, Color.FromArgb(50, 50, 80), Color.FromArgb(70, 70, 105));
             btnModificar.Click += BtnModificar_Click;
-            panelForm.Controls.Add(btnModificar);
-            yPos += 50;
+            scrollable.Controls.Add(btnModificar); yPos += 46;
 
-            btnEliminar = CrearBoton("ELIMINAR", yPos, Color.IndianRed);
+            btnEliminar = CrearBotonSide("✕  Eliminar Seleccionado", yPos, Color.FromArgb(140, 30, 30), Color.FromArgb(180, 50, 50));
             btnEliminar.Click += BtnEliminar_Click;
-            panelForm.Controls.Add(btnEliminar);
-            yPos += 50;
+            scrollable.Controls.Add(btnEliminar); yPos += 46;
 
-            btnLimpiar = CrearBoton("LIMPIAR", yPos, Color.Gray);
+            btnLimpiar = CrearBotonSide("↺  Limpiar Campos", yPos, Color.FromArgb(60, 60, 60), Color.FromArgb(85, 85, 85));
             btnLimpiar.Click += (s, e) => LimpiarCampos();
-            panelForm.Controls.Add(btnLimpiar);
+            scrollable.Controls.Add(btnLimpiar);
 
-            panelIzquierdo.Controls.Add(panelForm);
+            panelIzquierdo.Controls.Add(scrollable);
 
-            // ----- PANEL DERECHO: Grid + Búsqueda + Reportes -----
-            Panel panelDerecho = new Panel()
+            // ── ÁREA DERECHA ───────────────────────────────────────────────────
+            Panel panelDerecho = new Panel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(10)
+                BackColor = ColorFondo,
+                Padding = new Padding(16, 12, 16, 12)
             };
 
             // Barra de búsqueda
-            Panel panelBusqueda = new Panel()
+            Panel panelBusqueda = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 50
+                Height = 56,
+                BackColor = ColorCard,
+                Padding = new Padding(10, 10, 10, 10)
             };
+            EstiloCard(panelBusqueda);
 
-            txtBuscar = new TextBox()
+            txtBuscar = new TextBox
             {
-                Location = new Point(10, 10),
-                Size = new Size(300, 35),
+                Location = new Point(12, 13),
+                Size = new Size(330, 32),
                 Font = new Font("Segoe UI", 11),
-                PlaceholderText = "Buscar por nombre o categoría..."
+                BorderStyle = BorderStyle.None,
+                PlaceholderText = "  Buscar por marca, categoría, referencia..."
             };
 
-            btnBuscar = new Button()
+            Button btnBuscarBtn = new Button
             {
-                Text = "BUSCAR",
-                Location = new Point(320, 8),
-                Size = new Size(100, 35),
-                BackColor = Color.MediumVioletRed,
+                Text = "Buscar",
+                Location = new Point(350, 11),
+                Size = new Size(90, 34),
+                BackColor = ColorAccent,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
-            btnBuscar.FlatAppearance.BorderSize = 0;
-            btnBuscar.Click += BtnBuscar_Click;
+            btnBuscarBtn.FlatAppearance.BorderSize = 0;
+            btnBuscarBtn.Click += BtnBuscar_Click;
 
-            Button btnMostrarTodo = new Button()
+            Button btnVerTodo = new Button
             {
-                Text = "VER TODO",
-                Location = new Point(430, 8),
-                Size = new Size(100, 35),
-                BackColor = Color.Gray,
-                ForeColor = Color.White,
+                Text = "Ver Todo",
+                Location = new Point(448, 11),
+                Size = new Size(80, 34),
+                BackColor = ColorFondo,
+                ForeColor = Color.FromArgb(80, 80, 100),
                 FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9),
                 Cursor = Cursors.Hand
             };
-            btnMostrarTodo.FlatAppearance.BorderSize = 0;
-            btnMostrarTodo.Click += (s, e) => { txtBuscar.Clear(); CargarProductos(); };
+            btnVerTodo.FlatAppearance.BorderColor = Color.FromArgb(200, 200, 215);
+            btnVerTodo.FlatAppearance.BorderSize = 1;
+            btnVerTodo.Click += (s, e) => { txtBuscar.Clear(); CargarProductos(); };
 
             panelBusqueda.Controls.Add(txtBuscar);
-            panelBusqueda.Controls.Add(btnBuscar);
-            panelBusqueda.Controls.Add(btnMostrarTodo);
+            panelBusqueda.Controls.Add(btnBuscarBtn);
+            panelBusqueda.Controls.Add(btnVerTodo);
 
-            // DataGridView
-            dgvProductos = new DataGridView()
+            // Tabla de productos
+            Panel panelGrid = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = ColorCard,
+                Padding = new Padding(0)
+            };
+            EstiloCard(panelGrid);
+
+            dgvProductos = new DataGridView
             {
                 Dock = DockStyle.Fill,
                 ReadOnly = true,
@@ -245,112 +265,189 @@ namespace Angela
                 AllowUserToDeleteRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                BackgroundColor = Color.White,
+                BackgroundColor = ColorCard,
                 BorderStyle = BorderStyle.None,
                 RowHeadersVisible = false,
-                Font = new Font("Segoe UI", 10)
+                GridColor = Color.FromArgb(235, 235, 245),
+                Font = new Font("Segoe UI", 10),
+                RowTemplate = { Height = 36 },
+                CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal
             };
-            dgvProductos.DefaultCellStyle.SelectionBackColor = Color.FromArgb(255, 200, 220);
-            dgvProductos.DefaultCellStyle.SelectionForeColor = Color.Black;
-            dgvProductos.ColumnHeadersDefaultCellStyle.BackColor = Color.MediumVioletRed;
-            dgvProductos.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-            dgvProductos.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+            // Encabezados
+            dgvProductos.ColumnHeadersDefaultCellStyle.BackColor = ColorSidebar;
+            dgvProductos.ColumnHeadersDefaultCellStyle.ForeColor = ColorTextoLight;
+            dgvProductos.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvProductos.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+            dgvProductos.ColumnHeadersHeight = 40;
             dgvProductos.EnableHeadersVisualStyles = false;
+            // Filas
+            dgvProductos.DefaultCellStyle.BackColor = ColorCard;
+            dgvProductos.DefaultCellStyle.ForeColor = Color.FromArgb(40, 40, 60);
+            dgvProductos.DefaultCellStyle.SelectionBackColor = Color.FromArgb(255, 230, 242);
+            dgvProductos.DefaultCellStyle.SelectionForeColor = Color.FromArgb(30, 30, 50);
+            dgvProductos.DefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+            dgvProductos.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(250, 245, 252);
             dgvProductos.CellClick += DgvProductos_CellClick;
 
-            // Panel de reportes
-            Panel panelReportes = new Panel()
+            panelGrid.Controls.Add(dgvProductos);
+
+            // Tarjetas de estadísticas
+            Panel panelStats = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 80,
-                BackColor = Color.White,
-                Padding = new Padding(10)
+                Height = 90,
+                BackColor = ColorFondo,
+                Padding = new Padding(0, 8, 0, 0)
             };
 
-            lblTotalProductos = new Label()
-            {
-                Text = "Total productos: 0",
-                Location = new Point(10, 10),
-                AutoSize = true,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = Color.MediumVioletRed
-            };
+            Panel cardTotal = CrearCard("TOTAL PRODUCTOS", "0", Color.FromArgb(183, 28, 90));
+            Panel cardValor = CrearCard("VALOR INVENTARIO", "$0.00", Color.FromArgb(48, 63, 159));
+            Panel cardStock = CrearCard("STOCK BAJO (< 5)", "0", Color.FromArgb(183, 63, 0));
 
-            lblValorTotal = new Label()
-            {
-                Text = "Valor total: $0.00",
-                Location = new Point(10, 40),
-                AutoSize = true,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = Color.MediumVioletRed
-            };
+            lblTotalProductos = (Label)cardTotal.Controls["lblValor"];
+            lblValorTotal     = (Label)cardValor.Controls["lblValor"];
+            lblStockBajo      = (Label)cardStock.Controls["lblValor"];
 
-            lblStockBajo = new Label()
-            {
-                Text = "Productos con stock bajo (< 5): 0",
-                Location = new Point(350, 10),
-                AutoSize = true,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = Color.IndianRed
-            };
+            panelStats.Controls.Add(cardStock);
+            panelStats.Controls.Add(cardValor);
+            panelStats.Controls.Add(cardTotal);
+            panelStats.Resize += (s, e) => DistribuirCards(panelStats, cardTotal, cardValor, cardStock);
 
-            panelReportes.Controls.Add(lblTotalProductos);
-            panelReportes.Controls.Add(lblValorTotal);
-            panelReportes.Controls.Add(lblStockBajo);
-
-            // Agregar al panel derecho en orden
-            panelDerecho.Controls.Add(dgvProductos);
+            // Ensamblaje derecho
+            panelDerecho.Controls.Add(panelGrid);
             panelDerecho.Controls.Add(panelBusqueda);
-            panelDerecho.Controls.Add(panelReportes);
+            panelDerecho.Controls.Add(panelStats);
 
-            // Orden: Fill primero, luego Left, luego Top
+            // Orden de controles en el form
             this.Controls.Add(panelDerecho);
             this.Controls.Add(panelIzquierdo);
-            this.Controls.Add(panelSuperior);
+            this.Controls.Add(header);
+
+            this.Shown += (s, e) => DistribuirCards(panelStats, cardTotal, cardValor, cardStock);
         }
 
-        // ===== HELPERS DE UI =====
+        // ── HELPERS DE UI ────────────────────────────────────────────────────
 
-        private Label CrearLabel(string texto, int y)
+        private void EstiloCard(Panel p)
         {
-            return new Label()
+            p.Margin = new Padding(0, 0, 0, 10);
+        }
+
+        private Label CrearLabelSide(string texto, int y)
+        {
+            return new Label
             {
-                Text = texto,
-                Location = new Point(20, y),
+                Text = texto.ToUpper(),
+                Location = new Point(24, y),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                ForeColor = Color.MediumVioletRed
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = ColorTextoSide
             };
         }
 
-        private TextBox CrearTextBox(int y)
+        private TextBox CrearInput(int y)
         {
-            return new TextBox()
+            return new TextBox
             {
-                Location = new Point(20, y),
-                Size = new Size(360, 35),
-                Font = new Font("Segoe UI", 11)
+                Location = new Point(24, y),
+                Size = new Size(342, 32),
+                Font = new Font("Segoe UI", 11),
+                BackColor = ColorSidebarAlt,
+                ForeColor = ColorTextoLight,
+                BorderStyle = BorderStyle.FixedSingle
             };
         }
 
-        private Button CrearBoton(string texto, int y, Color color)
+        private ComboBox CrearCombo(int y, string[] items)
         {
-            Button btn = new Button()
+            var cmb = new ComboBox
+            {
+                Location = new Point(24, y),
+                Size = new Size(342, 32),
+                Font = new Font("Segoe UI", 11),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = ColorSidebarAlt,
+                ForeColor = ColorTextoLight,
+                FlatStyle = FlatStyle.Flat
+            };
+            cmb.Items.AddRange(items);
+            cmb.SelectedIndex = 0;
+            return cmb;
+        }
+
+        private Button CrearBotonSide(string texto, int y, Color color, Color hover)
+        {
+            var btn = new Button
             {
                 Text = texto,
-                Location = new Point(20, y),
-                Size = new Size(360, 40),
+                Location = new Point(24, y),
+                Size = new Size(342, 38),
                 BackColor = color,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(12, 0, 0, 0)
             };
             btn.FlatAppearance.BorderSize = 0;
+            btn.MouseEnter += (s, e) => btn.BackColor = hover;
+            btn.MouseLeave += (s, e) => btn.BackColor = color;
             return btn;
         }
 
-        // ===== OPERACIONES CRUD =====
+        private Panel CrearCard(string titulo, string valorInicial, Color colorAccentCard)
+        {
+            Panel card = new Panel
+            {
+                BackColor = ColorCard,
+                Height = 72
+            };
+
+            Panel barra = new Panel
+            {
+                Dock = DockStyle.Left,
+                Width = 5,
+                BackColor = colorAccentCard
+            };
+
+            Label lblTit = new Label
+            {
+                Text = titulo,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = Color.FromArgb(130, 130, 150),
+                Location = new Point(16, 12),
+                AutoSize = true
+            };
+
+            Label lblVal = new Label
+            {
+                Name = "lblValor",
+                Text = valorInicial,
+                Font = new Font("Segoe UI", 17, FontStyle.Bold),
+                ForeColor = colorAccentCard,
+                Location = new Point(16, 32),
+                AutoSize = true
+            };
+
+            card.Controls.Add(lblTit);
+            card.Controls.Add(lblVal);
+            card.Controls.Add(barra);
+            return card;
+        }
+
+        private void DistribuirCards(Panel contenedor, params Panel[] cards)
+        {
+            int margen = 8;
+            int ancho = (contenedor.Width - margen * (cards.Length + 1)) / cards.Length;
+            for (int i = 0; i < cards.Length; i++)
+            {
+                cards[i].Location = new Point(margen + i * (ancho + margen), 8);
+                cards[i].Size = new Size(ancho, 72);
+            }
+        }
+
+        // ── CRUD ─────────────────────────────────────────────────────────────
 
         private void CargarProductos()
         {
@@ -359,10 +456,10 @@ namespace Angela
                 using (MySqlConnection conn = ConexionBD.ObtenerConexion())
                 {
                     conn.Open();
-                    string query = "SELECT Id, Nombre, Categoria, Referencia, Talla, Precio, Cantidad FROM productos";
-                    MySqlDataAdapter adapter = new MySqlDataAdapter(query, conn);
+                    string query = "SELECT Id, Categoria, Subcategoria, Marca, Referencia, Unidades, Talla, Descripcion, PrecioCompra, PrecioVenta FROM productos";
+                    MySqlCommand cmd = new MySqlCommand(query, conn);
                     DataTable dt = new DataTable();
-                    adapter.Fill(dt);
+                    dt.Load(cmd.ExecuteReader());
                     dgvProductos.DataSource = dt;
                 }
             }
@@ -375,23 +472,24 @@ namespace Angela
         private void BtnAgregar_Click(object sender, EventArgs e)
         {
             if (!ValidarCampos()) return;
-
             try
             {
                 using (MySqlConnection conn = ConexionBD.ObtenerConexion())
                 {
                     conn.Open();
-                    string query = "INSERT INTO productos (Nombre, Categoria, Referencia, Talla, Precio, Cantidad) VALUES (@nombre, @categoria, @referencia, @talla, @precio, @cantidad)";
+                    string query = "INSERT INTO productos (Categoria, Subcategoria, Marca, Referencia, Unidades, Talla, Descripcion, PrecioCompra, PrecioVenta) VALUES (@categoria, @subcategoria, @marca, @referencia, @unidades, @talla, @descripcion, @precioCompra, @precioVenta)";
                     MySqlCommand cmd = new MySqlCommand(query, conn);
-                    cmd.Parameters.AddWithValue("@nombre", txtNombre.Text.Trim());
                     cmd.Parameters.AddWithValue("@categoria", cmbCategoria.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@subcategoria", txtSubcategoria.Text.Trim());
+                    cmd.Parameters.AddWithValue("@marca", txtMarca.Text.Trim());
                     cmd.Parameters.AddWithValue("@referencia", txtReferencia.Text.Trim());
-                    cmd.Parameters.AddWithValue("@talla", txtTalla.Text.Trim());
-                    cmd.Parameters.AddWithValue("@precio", decimal.Parse(txtPrecio.Text.Trim()));
-                    cmd.Parameters.AddWithValue("@cantidad", int.Parse(txtCantidad.Text.Trim()));
+                    cmd.Parameters.AddWithValue("@unidades", int.Parse(txtUnidades.Text.Trim()));
+                    cmd.Parameters.AddWithValue("@talla", cmbTalla.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@descripcion", txtDescripcion.Text.Trim());
+                    cmd.Parameters.AddWithValue("@precioCompra", decimal.Parse(txtPrecioCompra.Text.Trim()));
+                    cmd.Parameters.AddWithValue("@precioVenta", decimal.Parse(txtPrecioVenta.Text.Trim()));
                     cmd.ExecuteNonQuery();
                 }
-
                 MessageBox.Show("Producto agregado correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LimpiarCampos();
                 CargarProductos();
@@ -411,24 +509,25 @@ namespace Angela
                 return;
             }
             if (!ValidarCampos()) return;
-
             try
             {
                 using (MySqlConnection conn = ConexionBD.ObtenerConexion())
                 {
                     conn.Open();
-                    string query = "UPDATE productos SET Nombre=@nombre, Categoria=@categoria, Referencia=@referencia, Talla=@talla, Precio=@precio, Cantidad=@cantidad WHERE Id=@id";
+                    string query = "UPDATE productos SET Categoria=@categoria, Subcategoria=@subcategoria, Marca=@marca, Referencia=@referencia, Unidades=@unidades, Talla=@talla, Descripcion=@descripcion, PrecioCompra=@precioCompra, PrecioVenta=@precioVenta WHERE Id=@id";
                     MySqlCommand cmd = new MySqlCommand(query, conn);
-                    cmd.Parameters.AddWithValue("@nombre", txtNombre.Text.Trim());
                     cmd.Parameters.AddWithValue("@categoria", cmbCategoria.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@subcategoria", txtSubcategoria.Text.Trim());
+                    cmd.Parameters.AddWithValue("@marca", txtMarca.Text.Trim());
                     cmd.Parameters.AddWithValue("@referencia", txtReferencia.Text.Trim());
-                    cmd.Parameters.AddWithValue("@talla", txtTalla.Text.Trim());
-                    cmd.Parameters.AddWithValue("@precio", decimal.Parse(txtPrecio.Text.Trim()));
-                    cmd.Parameters.AddWithValue("@cantidad", int.Parse(txtCantidad.Text.Trim()));
+                    cmd.Parameters.AddWithValue("@unidades", int.Parse(txtUnidades.Text.Trim()));
+                    cmd.Parameters.AddWithValue("@talla", cmbTalla.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@descripcion", txtDescripcion.Text.Trim());
+                    cmd.Parameters.AddWithValue("@precioCompra", decimal.Parse(txtPrecioCompra.Text.Trim()));
+                    cmd.Parameters.AddWithValue("@precioVenta", decimal.Parse(txtPrecioVenta.Text.Trim()));
                     cmd.Parameters.AddWithValue("@id", idSeleccionado);
                     cmd.ExecuteNonQuery();
                 }
-
                 MessageBox.Show("Producto modificado correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LimpiarCampos();
                 CargarProductos();
@@ -447,21 +546,17 @@ namespace Angela
                 MessageBox.Show("Seleccione un producto de la tabla para eliminar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-
-            DialogResult resultado = MessageBox.Show("¿Está seguro de eliminar este producto?", "Confirmar eliminación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (resultado != DialogResult.Yes) return;
-
+            if (MessageBox.Show("¿Está seguro de eliminar este producto?", "Confirmar eliminación", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
             try
             {
                 using (MySqlConnection conn = ConexionBD.ObtenerConexion())
                 {
                     conn.Open();
-                    string query = "DELETE FROM productos WHERE Id=@id";
-                    MySqlCommand cmd = new MySqlCommand(query, conn);
+                    MySqlCommand cmd = new MySqlCommand("DELETE FROM productos WHERE Id=@id", conn);
                     cmd.Parameters.AddWithValue("@id", idSeleccionado);
                     cmd.ExecuteNonQuery();
                 }
-
                 MessageBox.Show("Producto eliminado correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 LimpiarCampos();
                 CargarProductos();
@@ -473,28 +568,20 @@ namespace Angela
             }
         }
 
-        // ===== BÚSQUEDA =====
-
         private void BtnBuscar_Click(object sender, EventArgs e)
         {
             string termino = txtBuscar.Text.Trim();
-            if (string.IsNullOrEmpty(termino))
-            {
-                CargarProductos();
-                return;
-            }
-
+            if (string.IsNullOrEmpty(termino)) { CargarProductos(); return; }
             try
             {
                 using (MySqlConnection conn = ConexionBD.ObtenerConexion())
                 {
                     conn.Open();
-                    string query = "SELECT Id, Nombre, Categoria, Referencia, Talla, Precio, Cantidad FROM productos WHERE Nombre LIKE @termino OR Categoria LIKE @termino";
+                    string query = "SELECT Id, Categoria, Subcategoria, Marca, Referencia, Unidades, Talla, Descripcion, PrecioCompra, PrecioVenta FROM productos WHERE Descripcion LIKE @t OR Marca LIKE @t OR Categoria LIKE @t OR Referencia LIKE @t OR Talla LIKE @t";
                     MySqlCommand cmd = new MySqlCommand(query, conn);
-                    cmd.Parameters.AddWithValue("@termino", "%" + termino + "%");
-                    MySqlDataAdapter adapter = new MySqlDataAdapter(cmd);
+                    cmd.Parameters.AddWithValue("@t", "%" + termino + "%");
                     DataTable dt = new DataTable();
-                    adapter.Fill(dt);
+                    dt.Load(cmd.ExecuteReader());
                     dgvProductos.DataSource = dt;
                 }
             }
@@ -504,8 +591,6 @@ namespace Angela
             }
         }
 
-        // ===== REPORTES =====
-
         private void ActualizarReportes()
         {
             try
@@ -514,20 +599,17 @@ namespace Angela
                 {
                     conn.Open();
 
-                    // Total de productos
                     MySqlCommand cmdTotal = new MySqlCommand("SELECT COUNT(*) FROM productos", conn);
                     int total = Convert.ToInt32(cmdTotal.ExecuteScalar());
-                    lblTotalProductos.Text = "Total productos: " + total;
+                    lblTotalProductos.Text = total.ToString();
 
-                    // Valor total del inventario (precio * cantidad)
-                    MySqlCommand cmdValor = new MySqlCommand("SELECT COALESCE(SUM(Precio * Cantidad), 0) FROM productos", conn);
+                    MySqlCommand cmdValor = new MySqlCommand("SELECT COALESCE(SUM(PrecioVenta * Unidades), 0) FROM productos", conn);
                     decimal valor = Convert.ToDecimal(cmdValor.ExecuteScalar());
-                    lblValorTotal.Text = "Valor total: $" + valor.ToString("N2");
+                    lblValorTotal.Text = "$" + valor.ToString("N2");
 
-                    // Productos con stock bajo
-                    MySqlCommand cmdBajo = new MySqlCommand("SELECT COUNT(*) FROM productos WHERE Cantidad < 5", conn);
+                    MySqlCommand cmdBajo = new MySqlCommand("SELECT COUNT(*) FROM productos WHERE Unidades < 5", conn);
                     int bajo = Convert.ToInt32(cmdBajo.ExecuteScalar());
-                    lblStockBajo.Text = "Productos con stock bajo (< 5): " + bajo;
+                    lblStockBajo.Text = bajo.ToString();
                 }
             }
             catch (Exception ex)
@@ -536,65 +618,60 @@ namespace Angela
             }
         }
 
-        // ===== EVENTOS DEL GRID =====
-
         private void DgvProductos_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
-
             DataGridViewRow fila = dgvProductos.Rows[e.RowIndex];
             idSeleccionado = Convert.ToInt32(fila.Cells["Id"].Value);
-            txtNombre.Text = fila.Cells["Nombre"].Value.ToString();
 
             string categoria = fila.Cells["Categoria"].Value.ToString();
-            int index = cmbCategoria.Items.IndexOf(categoria);
-            cmbCategoria.SelectedIndex = index >= 0 ? index : 0;
+            int idx = cmbCategoria.Items.IndexOf(categoria);
+            cmbCategoria.SelectedIndex = idx >= 0 ? idx : 0;
 
-            txtReferencia.Text = fila.Cells["Referencia"].Value.ToString();
-            txtTalla.Text = fila.Cells["Talla"].Value.ToString();
-            txtPrecio.Text = fila.Cells["Precio"].Value.ToString();
-            txtCantidad.Text = fila.Cells["Cantidad"].Value.ToString();
+            txtSubcategoria.Text  = fila.Cells["Subcategoria"].Value.ToString();
+            txtMarca.Text         = fila.Cells["Marca"].Value.ToString();
+            txtReferencia.Text    = fila.Cells["Referencia"].Value.ToString();
+            txtUnidades.Text      = fila.Cells["Unidades"].Value.ToString();
+
+            string talla = fila.Cells["Talla"].Value.ToString();
+            int idxTalla = cmbTalla.Items.IndexOf(talla);
+            cmbTalla.SelectedIndex = idxTalla >= 0 ? idxTalla : 2;
+
+            txtDescripcion.Text   = fila.Cells["Descripcion"].Value.ToString();
+            txtPrecioCompra.Text  = fila.Cells["PrecioCompra"].Value.ToString();
+            txtPrecioVenta.Text   = fila.Cells["PrecioVenta"].Value.ToString();
         }
-
-        // ===== UTILIDADES =====
 
         private void LimpiarCampos()
         {
-            txtNombre.Clear();
             cmbCategoria.SelectedIndex = 0;
+            txtSubcategoria.Clear();
+            txtMarca.Clear();
             txtReferencia.Clear();
-            txtTalla.Clear();
-            txtPrecio.Clear();
-            txtCantidad.Clear();
+            txtUnidades.Clear();
+            cmbTalla.SelectedIndex = 2;
+            txtDescripcion.Clear();
+            txtPrecioCompra.Clear();
+            txtPrecioVenta.Clear();
             idSeleccionado = -1;
         }
 
         private bool ValidarCampos()
         {
-            if (string.IsNullOrWhiteSpace(txtNombre.Text))
-            {
-                MessageBox.Show("Ingrese el nombre del producto.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtNombre.Focus();
-                return false;
-            }
-            if (string.IsNullOrWhiteSpace(txtTalla.Text))
-            {
-                MessageBox.Show("Ingrese la talla.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtTalla.Focus();
-                return false;
-            }
-            if (!decimal.TryParse(txtPrecio.Text.Trim(), out decimal precio) || precio < 0)
-            {
-                MessageBox.Show("Ingrese un precio válido.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtPrecio.Focus();
-                return false;
-            }
-            if (!int.TryParse(txtCantidad.Text.Trim(), out int cantidad) || cantidad < 0)
-            {
-                MessageBox.Show("Ingrese una cantidad válida.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                txtCantidad.Focus();
-                return false;
-            }
+            if (string.IsNullOrWhiteSpace(txtSubcategoria.Text))
+            { MessageBox.Show("Ingrese la subcategoría.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning); txtSubcategoria.Focus(); return false; }
+            if (string.IsNullOrWhiteSpace(txtMarca.Text))
+            { MessageBox.Show("Ingrese la marca.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning); txtMarca.Focus(); return false; }
+            if (string.IsNullOrWhiteSpace(txtReferencia.Text))
+            { MessageBox.Show("Ingrese la referencia.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning); txtReferencia.Focus(); return false; }
+            if (!int.TryParse(txtUnidades.Text.Trim(), out int u) || u < 0)
+            { MessageBox.Show("Ingrese una cantidad de unidades válida.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning); txtUnidades.Focus(); return false; }
+            if (string.IsNullOrWhiteSpace(txtDescripcion.Text))
+            { MessageBox.Show("Ingrese la descripción.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning); txtDescripcion.Focus(); return false; }
+            if (!decimal.TryParse(txtPrecioCompra.Text.Trim(), out decimal pc) || pc < 0)
+            { MessageBox.Show("Ingrese un precio de compra válido.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning); txtPrecioCompra.Focus(); return false; }
+            if (!decimal.TryParse(txtPrecioVenta.Text.Trim(), out decimal pv) || pv < 0)
+            { MessageBox.Show("Ingrese un precio de venta válido.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning); txtPrecioVenta.Focus(); return false; }
             return true;
         }
     }

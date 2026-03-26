@@ -95,8 +95,17 @@ namespace Angela
                 if (titulo == "INVENTARIO")
                 {
                     this.Hide();
-                    frmInventario ventanaInventario = new frmInventario(this);
-                    ventanaInventario.Show();
+                    new frmInventario(this).Show();
+                }
+                else if (titulo == "VENTAS")
+                {
+                    this.Hide();
+                    new frmVentas(this).Show();
+                }
+                else if (titulo == "CONTABILIDAD")
+                {
+                    this.Hide();
+                    new frmContabilidad(this).Show();
                 }
                 else
                 {
