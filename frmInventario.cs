@@ -22,7 +22,7 @@ namespace Angela
         private TextBox txtSubcategoria, txtMarca, txtReferencia, txtUnidades,
                         txtDescripcion, txtPrecioCompra, txtPrecioVenta, txtBuscar;
         private ComboBox cmbCategoria, cmbTalla;
-        private Button btnAgregar, btnModificar, btnEliminar, btnLimpiar, btnBuscar;
+        private Button btnAgregar, btnModificar, btnEliminar, btnLimpiar, btnBuscar, btnAgregarUnidades;
         private DataGridView dgvProductos;
         private Label lblTotalProductos, lblValorTotal, lblStockBajo;
         private Panel panelIzquierdo;
@@ -177,6 +177,10 @@ namespace Angela
             btnModificar = CrearBotonSide("✎  Modificar Seleccionado", yPos, Color.FromArgb(50, 50, 80), Color.FromArgb(70, 70, 105));
             btnModificar.Click += BtnModificar_Click;
             scrollable.Controls.Add(btnModificar); yPos += 46;
+
+            btnAgregarUnidades = CrearBotonSide("➕  Agregar Unidades", yPos, Color.FromArgb(30, 100, 60), Color.FromArgb(45, 130, 80));
+            btnAgregarUnidades.Click += BtnAgregarUnidades_Click;
+            scrollable.Controls.Add(btnAgregarUnidades); yPos += 46;
 
             btnEliminar = CrearBotonSide("✕  Eliminar Seleccionado", yPos, Color.FromArgb(140, 30, 30), Color.FromArgb(180, 50, 50));
             btnEliminar.Click += BtnEliminar_Click;
@@ -539,6 +543,99 @@ namespace Angela
             }
         }
 
+        private void BtnAgregarUnidades_Click(object sender, EventArgs e)
+        {
+            if (idSeleccionado == -1)
+            {
+                MessageBox.Show("Seleccione un producto de la tabla primero.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Mini-diálogo para pedir la cantidad
+            Form dlg = new Form
+            {
+                Text = "Agregar Unidades",
+                Size = new Size(320, 160),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(242, 242, 248)
+            };
+
+            Label lbl = new Label
+            {
+                Text = "¿Cuántas unidades desea agregar?",
+                Location = new Point(16, 18),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10)
+            };
+
+            TextBox txtCantidad = new TextBox
+            {
+                Location = new Point(16, 48),
+                Size = new Size(270, 28),
+                Font = new Font("Segoe UI", 11)
+            };
+
+            Button btnOk = new Button
+            {
+                Text = "Agregar",
+                DialogResult = DialogResult.OK,
+                Location = new Point(130, 85),
+                Size = new Size(80, 30),
+                BackColor = Color.FromArgb(30, 100, 60),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnOk.FlatAppearance.BorderSize = 0;
+
+            Button btnCancelar = new Button
+            {
+                Text = "Cancelar",
+                DialogResult = DialogResult.Cancel,
+                Location = new Point(218, 85),
+                Size = new Size(80, 30),
+                FlatStyle = FlatStyle.Flat
+            };
+
+            dlg.Controls.AddRange(new Control[] { lbl, txtCantidad, btnOk, btnCancelar });
+            dlg.AcceptButton = btnOk;
+            dlg.CancelButton = btnCancelar;
+
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            if (!int.TryParse(txtCantidad.Text.Trim(), out int cantidad) || cantidad <= 0)
+            {
+                MessageBox.Show("Ingrese una cantidad válida (número entero positivo).", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                using (MySqlConnection conn = ConexionBD.ObtenerConexion())
+                {
+                    conn.Open();
+                    MySqlCommand cmd = new MySqlCommand("UPDATE productos SET Unidades = Unidades + @cantidad WHERE Id = @id", conn);
+                    cmd.Parameters.AddWithValue("@cantidad", cantidad);
+                    cmd.Parameters.AddWithValue("@id", idSeleccionado);
+                    cmd.ExecuteNonQuery();
+                }
+
+                int stockActual = int.TryParse(txtUnidades.Text, out int s) ? s : 0;
+                txtUnidades.Text = (stockActual + cantidad).ToString();
+
+                MessageBox.Show($"Se agregaron {cantidad} unidades correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                CargarProductos();
+                ActualizarReportes();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al agregar unidades: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void BtnEliminar_Click(object sender, EventArgs e)
         {
             if (idSeleccionado == -1)
@@ -546,7 +643,7 @@ namespace Angela
                 MessageBox.Show("Seleccione un producto de la tabla para eliminar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            if (MessageBox.Show("¿Está seguro de eliminar este producto?", "Confirmar eliminación", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            if (MessageBox.Show("¿Está seguro de eliminar este producto?\nEsta acción no se puede deshacer.", "Confirmar eliminación", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return;
             try
             {

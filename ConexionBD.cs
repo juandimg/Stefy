@@ -17,6 +17,10 @@ namespace Angela
             return new MySqlConnection(ConnectionString);
         }
 
+        /// <summary>Expone las credenciales para que BackupService pueda llamar a mysqldump.</summary>
+        public static (string database, string user, string password) ObtenerCredenciales()
+            => (Database, User, Password);
+
         public static void InicializarBD()
         {
             // Crear la base de datos si no existe
@@ -73,6 +77,38 @@ namespace Angela
                         Categoria VARCHAR(100)  NOT NULL,
                         Concepto  VARCHAR(500)  NOT NULL,
                         Monto     DECIMAL(10,2) NOT NULL
+                    )", conn).ExecuteNonQuery();
+
+                new MySqlCommand(@"
+                    CREATE TABLE IF NOT EXISTS clientes (
+                        Id        INT PRIMARY KEY AUTO_INCREMENT,
+                        Cedula    VARCHAR(30)   NOT NULL,
+                        Nombre    VARCHAR(200)  NOT NULL,
+                        Telefono  VARCHAR(30)   NOT NULL DEFAULT '',
+                        Valor     DECIMAL(10,2) NOT NULL DEFAULT 0
+                    )", conn).ExecuteNonQuery();
+
+                new MySqlCommand(@"
+                    CREATE TABLE IF NOT EXISTS creditos (
+                        Id         INT PRIMARY KEY AUTO_INCREMENT,
+                        ClienteId  INT           NOT NULL,
+                        VentaId    INT           NOT NULL,
+                        Fecha      VARCHAR(30)   NOT NULL,
+                        Total      DECIMAL(10,2) NOT NULL,
+                        Abonado    DECIMAL(10,2) NOT NULL DEFAULT 0,
+                        Estado     VARCHAR(20)   NOT NULL DEFAULT 'Pendiente',
+                        FOREIGN KEY (ClienteId) REFERENCES clientes(Id),
+                        FOREIGN KEY (VentaId)   REFERENCES ventas(Id)
+                    )", conn).ExecuteNonQuery();
+
+                new MySqlCommand(@"
+                    CREATE TABLE IF NOT EXISTS abonos (
+                        Id             INT PRIMARY KEY AUTO_INCREMENT,
+                        ClienteId      INT           NOT NULL,
+                        ClienteNombre  VARCHAR(200)  NOT NULL,
+                        Fecha          VARCHAR(30)   NOT NULL,
+                        Monto          DECIMAL(10,2) NOT NULL,
+                        FOREIGN KEY (ClienteId) REFERENCES clientes(Id)
                     )", conn).ExecuteNonQuery();
             }
         }

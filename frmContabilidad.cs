@@ -8,7 +8,7 @@ namespace Angela
 {
     public class frmContabilidad : Form
     {
-        // ── Paleta ────────────────────────────────────────────────────────────
+        // ── Paleta de colores
         private static readonly Color ColorSidebar    = Color.FromArgb(28, 28, 45);
         private static readonly Color ColorSidebarAlt = Color.FromArgb(38, 38, 60);
         private static readonly Color ColorAccent     = Color.FromArgb(100, 40, 160);
@@ -28,6 +28,8 @@ namespace Angela
         private TextBox        txtConcepto, txtMontoGasto;
         private ComboBox       cmbCategoriaGasto;
         private Form           formPadre;
+        private int            _gastoEditandoId = -1;
+        private Button         btnRegistrarGasto;
 
         public frmContabilidad(Form padre)
         {
@@ -155,9 +157,13 @@ namespace Angela
             scrollSide.Controls.Add(CrearLabelSide("Monto ($)", y)); y += 22;
             txtMontoGasto = CrearInput(y); scrollSide.Controls.Add(txtMontoGasto); y += 52;
 
-            var btnGasto = CrearBotonSide("  Registrar Gasto", y, ColorRed, ColorRedHov);
-            btnGasto.Click += BtnRegistrarGasto_Click;
-            scrollSide.Controls.Add(btnGasto);
+            btnRegistrarGasto = CrearBotonSide("  Registrar Gasto", y, ColorRed, ColorRedHov);
+            btnRegistrarGasto.Click += BtnRegistrarGasto_Click;
+            scrollSide.Controls.Add(btnRegistrarGasto); y += 46;
+
+            var btnCancelar = CrearBotonSide("  Cancelar edición", y, ColorSidebarAlt, Color.FromArgb(55, 55, 85));
+            btnCancelar.Click += (s, e) => CancelarEdicion();
+            scrollSide.Controls.Add(btnCancelar);
 
             sidebar.Controls.Add(scrollSide);
 
@@ -202,29 +208,79 @@ namespace Angela
             // Tab ventas
             dgvVentas = CrearGrid();
             dgvVentas.CellDoubleClick += DgvVentas_CellDoubleClick;
-            Label lblHintVentas = new Label {
-                Text = "Doble clic en una venta para ver su detalle.",
-                Dock = DockStyle.Bottom, Height = 26,
-                Font = new Font("Segoe UI", 8, FontStyle.Italic),
-                ForeColor = Color.Gray, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(6, 0, 0, 0)
+
+            Panel panelBotonesVenta = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = ColorFondo };
+
+            Button btnVerDetalle = new Button {
+                Text = "🔍  Ver Detalle",
+                Dock = DockStyle.Left, Width = 180,
+                BackColor = Color.FromArgb(48, 63, 159), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand
             };
+            btnVerDetalle.FlatAppearance.BorderSize = 0;
+            btnVerDetalle.Click += (s, e) => {
+                if (dgvVentas.CurrentRow == null || dgvVentas.CurrentRow.Index < 0) return;
+                int id = Convert.ToInt32(dgvVentas.CurrentRow.Cells["Id"].Value);
+                string fec = dgvVentas.CurrentRow.Cells["Fecha"].Value.ToString();
+                MostrarDetalleVenta(id, fec);
+            };
+
+            Button btnEditarVenta = new Button {
+                Text = "✎  Editar Venta",
+                Dock = DockStyle.Left, Width = 180,
+                BackColor = Color.FromArgb(60, 100, 180), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand
+            };
+            btnEditarVenta.FlatAppearance.BorderSize = 0;
+            btnEditarVenta.Click += BtnEditarVenta_Click;
+
+            Button btnEliminarVenta = new Button {
+                Text = "✕  Eliminar Venta",
+                Dock = DockStyle.Left, Width = 180,
+                BackColor = Color.FromArgb(140, 30, 30), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand
+            };
+            btnEliminarVenta.FlatAppearance.BorderSize = 0;
+            btnEliminarVenta.Click += BtnEliminarVenta_Click;
+
+            panelBotonesVenta.Controls.Add(btnEliminarVenta);
+            panelBotonesVenta.Controls.Add(btnEditarVenta);
+            panelBotonesVenta.Controls.Add(btnVerDetalle);
             tabVentas.Controls.Add(dgvVentas);
-            tabVentas.Controls.Add(lblHintVentas);
+            tabVentas.Controls.Add(panelBotonesVenta);
 
             // Tab gastos
             dgvGastos = CrearGrid();
+
+            Panel panelBotonesGasto = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = ColorFondo };
+
+            Button btnEditarGasto = new Button {
+                Text = "✎  Editar gasto",
+                Dock = DockStyle.Left, Width = 200,
+                BackColor = Color.FromArgb(60, 100, 180), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand
+            };
+            btnEditarGasto.FlatAppearance.BorderSize = 0;
+            btnEditarGasto.Click += BtnEditarGasto_Click;
+
             Button btnEliminarGasto = new Button {
-                Text = "✕  Eliminar gasto seleccionado",
-                Dock = DockStyle.Bottom, Height = 36,
+                Text = "✕  Eliminar gasto",
+                Dock = DockStyle.Left, Width = 200,
                 BackColor = Color.FromArgb(140, 30, 30), ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold), Cursor = Cursors.Hand
             };
             btnEliminarGasto.FlatAppearance.BorderSize = 0;
             btnEliminarGasto.Click += BtnEliminarGasto_Click;
+
+            panelBotonesGasto.Controls.Add(btnEliminarGasto);
+            panelBotonesGasto.Controls.Add(btnEditarGasto);
             tabGastos.Controls.Add(dgvGastos);
-            tabGastos.Controls.Add(btnEliminarGasto);
+            tabGastos.Controls.Add(panelBotonesGasto);
 
             tabs.TabPages.Add(tabVentas);
             tabs.TabPages.Add(tabGastos);
@@ -284,9 +340,14 @@ namespace Angela
                 {
                     conn.Open();
                     var cmd = new MySqlCommand(@"
-                        SELECT Id, Fecha, Total, Tienda
-                        FROM ventas
-                        WHERE Fecha >= @d AND Fecha <= @h
+                        SELECT v.Fecha, v.Total, v.Tienda, 'Contado' AS Tipo
+                        FROM ventas v
+                        WHERE v.Fecha >= @d AND v.Fecha <= @h
+                          AND NOT EXISTS (SELECT 1 FROM creditos c WHERE c.VentaId = v.Id)
+                        UNION ALL
+                        SELECT a.Fecha, a.Monto AS Total, a.ClienteNombre AS Tienda, 'Abono' AS Tipo
+                        FROM abonos a
+                        WHERE a.Fecha >= @d AND a.Fecha <= @h
                         ORDER BY Fecha DESC", conn);
                     cmd.Parameters.AddWithValue("@d", desde.ToString("yyyy-MM-dd") + " 00:00:00");
                     cmd.Parameters.AddWithValue("@h", hasta.ToString("yyyy-MM-dd")  + " 23:59:59");
@@ -320,6 +381,7 @@ namespace Angela
                     var dt = new DataTable();
                     dt.Load(cmd.ExecuteReader());
                     dgvGastos.DataSource = dt;
+                    ConfigurarColumnasGastos();
                 }
             }
             catch (Exception ex)
@@ -340,17 +402,26 @@ namespace Angela
                     string h = hasta.ToString("yyyy-MM-dd")  + " 23:59:59";
 
                     var cmdV = new MySqlCommand(
-                        "SELECT COALESCE(SUM(Total),0) FROM ventas WHERE Fecha>=@d AND Fecha<=@h", conn);
+                        @"SELECT COALESCE(SUM(v.Total),0) FROM ventas v
+                          WHERE v.Fecha>=@d AND v.Fecha<=@h
+                            AND NOT EXISTS (SELECT 1 FROM creditos c WHERE c.VentaId = v.Id)", conn);
                     cmdV.Parameters.AddWithValue("@d", d);
                     cmdV.Parameters.AddWithValue("@h", h);
                     decimal totalVentas = Convert.ToDecimal(cmdV.ExecuteScalar());
 
+                    var cmdAb = new MySqlCommand(
+                        "SELECT COALESCE(SUM(Monto),0) FROM abonos WHERE Fecha>=@d AND Fecha<=@h", conn);
+                    cmdAb.Parameters.AddWithValue("@d", d);
+                    cmdAb.Parameters.AddWithValue("@h", h);
+                    totalVentas += Convert.ToDecimal(cmdAb.ExecuteScalar());
+
                     var cmdC = new MySqlCommand(@"
                         SELECT COALESCE(SUM(dv.Cantidad * p.PrecioCompra), 0)
                         FROM detalle_ventas dv
-                        JOIN ventas v  ON dv.VentaId    = v.Id
+                        JOIN ventas v    ON dv.VentaId    = v.Id
                         JOIN productos p ON dv.ProductoId = p.Id
-                        WHERE v.Fecha >= @d AND v.Fecha <= @h", conn);
+                        WHERE v.Fecha >= @d AND v.Fecha <= @h
+                          AND NOT EXISTS (SELECT 1 FROM creditos c WHERE c.VentaId = v.Id)", conn);
                     cmdC.Parameters.AddWithValue("@d", d);
                     cmdC.Parameters.AddWithValue("@h", h);
                     decimal costoMercancia = Convert.ToDecimal(cmdC.ExecuteScalar());
@@ -379,7 +450,7 @@ namespace Angela
             }
         }
 
-        // ── Registrar gasto ───────────────────────────────────────────────────
+        // ── Registrar / Actualizar gasto ─────────────────────────────────────
         private void BtnRegistrarGasto_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(txtConcepto.Text))
@@ -402,26 +473,69 @@ namespace Angela
                 using (var conn = ConexionBD.ObtenerConexion())
                 {
                     conn.Open();
-                    var cmd = new MySqlCommand(@"
-                        INSERT INTO gastos (Fecha, Categoria, Concepto, Monto)
-                        VALUES (@f, @c, @co, @m)", conn);
-                    cmd.Parameters.AddWithValue("@f",  DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-                    cmd.Parameters.AddWithValue("@c",  cmbCategoriaGasto.SelectedItem.ToString());
-                    cmd.Parameters.AddWithValue("@co", txtConcepto.Text.Trim());
-                    cmd.Parameters.AddWithValue("@m",  monto);
+                    MySqlCommand cmd;
+                    if (_gastoEditandoId > 0)
+                    {
+                        cmd = new MySqlCommand(@"
+                            UPDATE gastos SET Categoria=@c, Concepto=@co, Monto=@m
+                            WHERE Id=@id", conn);
+                        cmd.Parameters.AddWithValue("@c",  cmbCategoriaGasto.SelectedItem.ToString());
+                        cmd.Parameters.AddWithValue("@co", txtConcepto.Text.Trim());
+                        cmd.Parameters.AddWithValue("@m",  monto);
+                        cmd.Parameters.AddWithValue("@id", _gastoEditandoId);
+                    }
+                    else
+                    {
+                        cmd = new MySqlCommand(@"
+                            INSERT INTO gastos (Fecha, Categoria, Concepto, Monto)
+                            VALUES (@f, @c, @co, @m)", conn);
+                        cmd.Parameters.AddWithValue("@f",  DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                        cmd.Parameters.AddWithValue("@c",  cmbCategoriaGasto.SelectedItem.ToString());
+                        cmd.Parameters.AddWithValue("@co", txtConcepto.Text.Trim());
+                        cmd.Parameters.AddWithValue("@m",  monto);
+                    }
                     cmd.ExecuteNonQuery();
                 }
-                MessageBox.Show("Gasto registrado correctamente.", "Éxito",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                txtConcepto.Clear();
-                txtMontoGasto.Clear();
+
+                string msg = _gastoEditandoId > 0 ? "Gasto actualizado correctamente." : "Gasto registrado correctamente.";
+                MessageBox.Show(msg, "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                CancelarEdicion();
                 CargarDatos(dtpDesde.Value, dtpHasta.Value);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al registrar gasto: " + ex.Message, "Error",
+                MessageBox.Show("Error al guardar gasto: " + ex.Message, "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        // ── Editar gasto ──────────────────────────────────────────────────────
+        private void BtnEditarGasto_Click(object sender, EventArgs e)
+        {
+            if (dgvGastos.CurrentRow == null || dgvGastos.CurrentRow.Index < 0) return;
+
+            DataGridViewRow fila = dgvGastos.CurrentRow;
+            _gastoEditandoId = Convert.ToInt32(fila.Cells["Id"].Value);
+
+            string cat = fila.Cells["Categoria"].Value?.ToString() ?? "";
+            int idx = cmbCategoriaGasto.Items.IndexOf(cat);
+            cmbCategoriaGasto.SelectedIndex = idx >= 0 ? idx : 0;
+
+            txtConcepto.Text   = fila.Cells["Concepto"].Value?.ToString() ?? "";
+            txtMontoGasto.Text = fila.Cells["Monto"].Value?.ToString() ?? "";
+
+            btnRegistrarGasto.Text     = "  Actualizar Gasto";
+            btnRegistrarGasto.BackColor = Color.FromArgb(60, 100, 180);
+        }
+
+        private void CancelarEdicion()
+        {
+            _gastoEditandoId = -1;
+            txtConcepto.Clear();
+            txtMontoGasto.Clear();
+            cmbCategoriaGasto.SelectedIndex = 0;
+            btnRegistrarGasto.Text      = "  Registrar Gasto";
+            btnRegistrarGasto.BackColor = ColorRed;
         }
 
         // ── Eliminar gasto ────────────────────────────────────────────────────
@@ -458,6 +572,211 @@ namespace Angela
             int ventaId = Convert.ToInt32(dgvVentas.Rows[e.RowIndex].Cells["Id"].Value);
             string fecha = dgvVentas.Rows[e.RowIndex].Cells["Fecha"].Value.ToString();
             MostrarDetalleVenta(ventaId, fecha);
+        }
+
+        private void BtnEditarVenta_Click(object sender, EventArgs e)
+        {
+            if (dgvVentas.CurrentRow == null || dgvVentas.CurrentRow.Index < 0) return;
+            int ventaId = Convert.ToInt32(dgvVentas.CurrentRow.Cells["Id"].Value);
+            string fecha = dgvVentas.CurrentRow.Cells["Fecha"].Value.ToString();
+            MostrarEditarVenta(ventaId, fecha);
+        }
+
+        private void BtnEliminarVenta_Click(object sender, EventArgs e)
+        {
+            if (dgvVentas.CurrentRow == null || dgvVentas.CurrentRow.Index < 0) return;
+            int id = Convert.ToInt32(dgvVentas.CurrentRow.Cells["Id"].Value);
+
+            if (MessageBox.Show($"¿Eliminar la venta #{id}? Esta acción no se puede deshacer.",
+                "Confirmar eliminación", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+
+            try
+            {
+                using (var conn = ConexionBD.ObtenerConexion())
+                {
+                    conn.Open();
+                    using (var tx = conn.BeginTransaction())
+                    {
+                        // Devolver stock al inventario antes de borrar
+                        var cmdStock = new MySqlCommand(@"
+                            UPDATE productos p
+                            INNER JOIN detalle_ventas dv ON dv.ProductoId = p.Id
+                            SET p.Unidades = p.Unidades + dv.Cantidad
+                            WHERE dv.VentaId = @id", conn, tx);
+                        cmdStock.Parameters.AddWithValue("@id", id);
+                        cmdStock.ExecuteNonQuery();
+
+                        var cmd1 = new MySqlCommand("DELETE FROM detalle_ventas WHERE VentaId=@id", conn, tx);
+                        cmd1.Parameters.AddWithValue("@id", id);
+                        cmd1.ExecuteNonQuery();
+
+                        var cmd2 = new MySqlCommand("DELETE FROM ventas WHERE Id=@id", conn, tx);
+                        cmd2.Parameters.AddWithValue("@id", id);
+                        cmd2.ExecuteNonQuery();
+
+                        tx.Commit();
+                    }
+                }
+                CargarDatos(dtpDesde.Value, dtpHasta.Value);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al eliminar: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void MostrarEditarVenta(int ventaId, string fecha)
+        {
+            DataTable dt;
+            try
+            {
+                using (var conn = ConexionBD.ObtenerConexion())
+                {
+                    conn.Open();
+                    var cmd = new MySqlCommand(@"
+                        SELECT Id, ProductoId, Descripcion, Talla, Cantidad, PrecioUnitario, Subtotal
+                        FROM detalle_ventas WHERE VentaId = @id", conn);
+                    cmd.Parameters.AddWithValue("@id", ventaId);
+                    dt = new DataTable();
+                    dt.Load(cmd.ExecuteReader());
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al cargar detalle: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            Form frmEditar = new Form {
+                Text = $"Editar Venta #{ventaId} — {fecha}",
+                Size = new Size(820, 480),
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = ColorFondo,
+                Font = new Font("Segoe UI", 10)
+            };
+
+            var dgvEdit = new DataGridView {
+                Dock = DockStyle.Fill,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                BackgroundColor = ColorCard,
+                BorderStyle = BorderStyle.None,
+                RowHeadersVisible = false,
+                Font = new Font("Segoe UI", 10),
+                RowTemplate = { Height = 36 },
+                CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal
+            };
+            dgvEdit.ColumnHeadersDefaultCellStyle.BackColor = ColorSidebar;
+            dgvEdit.ColumnHeadersDefaultCellStyle.ForeColor = ColorTextoLight;
+            dgvEdit.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgvEdit.ColumnHeadersHeight = 40;
+            dgvEdit.EnableHeadersVisualStyles = false;
+            dgvEdit.DataSource = dt;
+
+            // Configurar columnas
+            dgvEdit.DataBindingComplete += (s, ev) => {
+                if (dgvEdit.Columns.Contains("Id"))           dgvEdit.Columns["Id"].Visible = false;
+                if (dgvEdit.Columns.Contains("ProductoId"))   dgvEdit.Columns["ProductoId"].Visible = false;
+                if (dgvEdit.Columns.Contains("Subtotal"))     dgvEdit.Columns["Subtotal"].ReadOnly = true;
+                if (dgvEdit.Columns.Contains("Descripcion"))  dgvEdit.Columns["Descripcion"].HeaderText = "Descripción";
+                if (dgvEdit.Columns.Contains("Talla"))        dgvEdit.Columns["Talla"].HeaderText = "Talla";
+                if (dgvEdit.Columns.Contains("Cantidad"))     dgvEdit.Columns["Cantidad"].HeaderText = "Cantidad";
+                if (dgvEdit.Columns.Contains("PrecioUnitario")) dgvEdit.Columns["PrecioUnitario"].HeaderText = "Precio Unit.";
+                if (dgvEdit.Columns.Contains("Subtotal"))     dgvEdit.Columns["Subtotal"].HeaderText = "Subtotal";
+            };
+
+            // Recalcular subtotal al editar cantidad o precio
+            dgvEdit.CellEndEdit += (s, ev) => {
+                var row = dgvEdit.Rows[ev.RowIndex];
+                if (decimal.TryParse(row.Cells["Cantidad"]?.Value?.ToString(), out decimal cant) &&
+                    decimal.TryParse(row.Cells["PrecioUnitario"]?.Value?.ToString(), out decimal precio))
+                {
+                    row.Cells["Subtotal"].Value = cant * precio;
+                }
+            };
+
+            Panel panelBtn = new Panel { Dock = DockStyle.Bottom, Height = 46, BackColor = ColorFondo };
+            Button btnGuardar = new Button {
+                Text = "  Guardar Cambios", Dock = DockStyle.Right, Width = 200,
+                BackColor = ColorAccent, ForeColor = Color.White, FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold), Cursor = Cursors.Hand
+            };
+            btnGuardar.FlatAppearance.BorderSize = 0;
+            btnGuardar.Click += (s, ev) => {
+                try
+                {
+                    using (var conn = ConexionBD.ObtenerConexion())
+                    {
+                        conn.Open();
+                        using (var tx = conn.BeginTransaction())
+                        {
+                            decimal totalVenta = 0;
+                            foreach (DataRow row in dt.Rows)
+                            {
+                                int detId    = Convert.ToInt32(row["Id"]);
+                                int prodId   = Convert.ToInt32(row["ProductoId"]);
+                                string desc  = row["Descripcion"]?.ToString() ?? "";
+                                string talla = row["Talla"]?.ToString() ?? "";
+                                decimal cant  = Convert.ToDecimal(row["Cantidad"]);
+                                decimal prec  = Convert.ToDecimal(row["PrecioUnitario"]);
+                                decimal sub   = cant * prec;
+                                totalVenta   += sub;
+
+                                // Ajustar inventario: devolver la diferencia (cantOriginal - cantNueva)
+                                int cantOriginal = Convert.ToInt32(row["Cantidad", DataRowVersion.Original]);
+                                int diff = cantOriginal - (int)cant; // positivo → devuelve stock; negativo → descuenta más
+                                if (diff != 0)
+                                {
+                                    var cmdStock = new MySqlCommand(
+                                        "UPDATE productos SET Unidades = Unidades + @d WHERE Id = @pid", conn, tx);
+                                    cmdStock.Parameters.AddWithValue("@d",   diff);
+                                    cmdStock.Parameters.AddWithValue("@pid", prodId);
+                                    cmdStock.ExecuteNonQuery();
+                                }
+
+                                var cmd = new MySqlCommand(@"
+                                    UPDATE detalle_ventas
+                                    SET Descripcion=@d, Talla=@t, Cantidad=@c, PrecioUnitario=@p, Subtotal=@s
+                                    WHERE Id=@id", conn, tx);
+                                cmd.Parameters.AddWithValue("@d",  desc);
+                                cmd.Parameters.AddWithValue("@t",  talla);
+                                cmd.Parameters.AddWithValue("@c",  cant);
+                                cmd.Parameters.AddWithValue("@p",  prec);
+                                cmd.Parameters.AddWithValue("@s",  sub);
+                                cmd.Parameters.AddWithValue("@id", detId);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            var cmdV = new MySqlCommand("UPDATE ventas SET Total=@t WHERE Id=@id", conn, tx);
+                            cmdV.Parameters.AddWithValue("@t",  totalVenta);
+                            cmdV.Parameters.AddWithValue("@id", ventaId);
+                            cmdV.ExecuteNonQuery();
+
+                            tx.Commit();
+                        }
+                    }
+                    MessageBox.Show("Venta actualizada correctamente.", "Éxito",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    frmEditar.DialogResult = DialogResult.OK;
+                    frmEditar.Close();
+                }
+                catch (Exception ex2)
+                {
+                    MessageBox.Show("Error al guardar: " + ex2.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
+            panelBtn.Controls.Add(btnGuardar);
+            frmEditar.Controls.Add(dgvEdit);
+            frmEditar.Controls.Add(panelBtn);
+
+            if (frmEditar.ShowDialog(this) == DialogResult.OK)
+                CargarDatos(dtpDesde.Value, dtpHasta.Value);
         }
 
         private void MostrarDetalleVenta(int ventaId, string fecha)
@@ -499,13 +818,24 @@ namespace Angela
             }
         }
 
+        private void ConfigurarColumnasGastos()
+        {
+            if (dgvGastos.Columns.Count == 0) return;
+            if (dgvGastos.Columns.Contains("Id"))        { dgvGastos.Columns["Id"].Visible = false; }
+            if (dgvGastos.Columns.Contains("Fecha"))     { dgvGastos.Columns["Fecha"].HeaderText = "Fecha";     dgvGastos.Columns["Fecha"].FillWeight = 30; }
+            if (dgvGastos.Columns.Contains("Categoria")) { dgvGastos.Columns["Categoria"].HeaderText = "Categoría"; dgvGastos.Columns["Categoria"].FillWeight = 25; }
+            if (dgvGastos.Columns.Contains("Concepto"))  { dgvGastos.Columns["Concepto"].HeaderText = "Concepto";  dgvGastos.Columns["Concepto"].FillWeight = 30; }
+            if (dgvGastos.Columns.Contains("Monto"))     { dgvGastos.Columns["Monto"].HeaderText = "Monto";     dgvGastos.Columns["Monto"].FillWeight = 15; }
+        }
+
         private void ConfigurarColumnasVentas()
         {
             if (dgvVentas.Columns.Count == 0) return;
-            if (dgvVentas.Columns.Contains("Id"))     { dgvVentas.Columns["Id"].HeaderText = "#";      dgvVentas.Columns["Id"].FillWeight = 8; }
-            if (dgvVentas.Columns.Contains("Fecha"))  { dgvVentas.Columns["Fecha"].HeaderText = "Fecha";  dgvVentas.Columns["Fecha"].FillWeight = 35; }
-            if (dgvVentas.Columns.Contains("Total"))  { dgvVentas.Columns["Total"].HeaderText = "Total";  dgvVentas.Columns["Total"].FillWeight = 25; }
-            if (dgvVentas.Columns.Contains("Tienda")) { dgvVentas.Columns["Tienda"].HeaderText = "Tienda"; dgvVentas.Columns["Tienda"].FillWeight = 25; }
+            if (dgvVentas.Columns.Contains("Id"))     { dgvVentas.Columns["Id"].Visible = false; }
+            if (dgvVentas.Columns.Contains("Fecha"))  { dgvVentas.Columns["Fecha"].HeaderText  = "Fecha";    dgvVentas.Columns["Fecha"].FillWeight  = 35; }
+            if (dgvVentas.Columns.Contains("Total"))  { dgvVentas.Columns["Total"].HeaderText  = "Monto ($)"; dgvVentas.Columns["Total"].FillWeight  = 25; }
+            if (dgvVentas.Columns.Contains("Tienda")) { dgvVentas.Columns["Tienda"].HeaderText = "Cliente / Tienda"; dgvVentas.Columns["Tienda"].FillWeight = 30; }
+            if (dgvVentas.Columns.Contains("Tipo"))   { dgvVentas.Columns["Tipo"].HeaderText   = "Tipo";     dgvVentas.Columns["Tipo"].FillWeight   = 10; }
         }
 
         // ══════════════════════════════════════════════════════════════════════

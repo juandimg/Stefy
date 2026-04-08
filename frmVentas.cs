@@ -1,6 +1,7 @@
 using System;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Printing;
 using System.Windows.Forms;
 using MySqlConnector;
 
@@ -475,11 +476,11 @@ namespace Angela
             {
                 Text      = "  COBRAR VENTA",
                 Dock      = DockStyle.Bottom,
-                Height    = 70,
+                Height    = 56,
                 BackColor = C_Green,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font      = new Font("Segoe UI", 16, FontStyle.Bold),
+                Font      = new Font("Segoe UI", 14, FontStyle.Bold),
                 Cursor    = Cursors.Hand,
                 TextAlign = ContentAlignment.MiddleCenter
             };
@@ -488,6 +489,24 @@ namespace Angela
             btnCobrar.MouseLeave += (s, e) => btnCobrar.BackColor = C_Green;
             btnCobrar.Click += BtnCobrar_Click;
 
+            Button btnFiado = new Button
+            {
+                Text      = "  VENTA A CRÉDITO",
+                Dock      = DockStyle.Bottom,
+                Height    = 50,
+                BackColor = Color.FromArgb(175, 95, 15),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font      = new Font("Segoe UI", 13, FontStyle.Bold),
+                Cursor    = Cursors.Hand,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            btnFiado.FlatAppearance.BorderSize = 0;
+            btnFiado.MouseEnter += (s, e) => btnFiado.BackColor = Color.FromArgb(210, 125, 25);
+            btnFiado.MouseLeave += (s, e) => btnFiado.BackColor = Color.FromArgb(175, 95, 15);
+            btnFiado.Click += BtnFiado_Click;
+
+            secCobrar.Controls.Add(btnFiado);
             secCobrar.Controls.Add(btnCobrar);
             secCobrar.Controls.Add(cardTotal);
 
@@ -821,10 +840,19 @@ namespace Angela
                     }
                 }
 
+                // Guardar copia del ticket para impresión antes de limpiar
+                DataTable ticketCopia = dtTicket.Copy();
+
                 MessageBox.Show($"Venta registrada.\nTotal cobrado: {total:C2}",
                     "Venta exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 dtTicket.Rows.Clear();
+
+                if (MessageBox.Show("¿Desea imprimir la factura?", "Imprimir",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    ImprimirFactura(ticketCopia, total);
+                }
                 ActualizarTotales();
                 ActualizarBarraEdicion();
                 txtBarcode.Focus();
@@ -944,6 +972,435 @@ namespace Angela
             lblMensaje.Text = texto;
             timerMensaje.Stop();
             timerMensaje.Start();
+        }
+
+        // ── Impresión de factura ──────────────────────────────────────────────
+        private void ImprimirFactura(DataTable ticket, decimal total)
+        {
+            PrintDocument doc = new PrintDocument();
+            doc.DefaultPageSettings.PaperSize = new PaperSize("Receipt", 300, 1100);
+
+            doc.PrintPage += (s, e) =>
+            {
+                Graphics g = e.Graphics;
+                float x = 10, y = 10;
+                float ancho = 280;
+
+                Font fTitulo  = new Font("Courier New", 13, FontStyle.Bold);
+                Font fNormal  = new Font("Courier New", 9);
+                Font fBold    = new Font("Courier New", 9, FontStyle.Bold);
+                Font fSmall   = new Font("Courier New", 8);
+                Brush negro   = Brushes.Black;
+                string linea  = new string('-', 40);
+
+                // Encabezado
+                SizeF sz = g.MeasureString(Config.NombreTienda, fTitulo);
+                g.DrawString(Config.NombreTienda, fTitulo, negro, x + (ancho - sz.Width) / 2, y);
+                y += sz.Height + 2;
+
+                string fecha = DateTime.Now.ToString("dd/MM/yyyy  HH:mm");
+                SizeF szF = g.MeasureString(fecha, fSmall);
+                g.DrawString(fecha, fSmall, negro, x + (ancho - szF.Width) / 2, y);
+                y += szF.Height + 4;
+
+                g.DrawString(linea, fSmall, negro, x, y); y += 14;
+
+                // Encabezado columnas
+                g.DrawString("Descripción", fBold, negro, x, y);
+                g.DrawString("Cant", fBold, negro, x + 160, y);
+                g.DrawString("Subtotal", fBold, negro, x + 200, y);
+                y += 14;
+                g.DrawString(linea, fSmall, negro, x, y); y += 14;
+
+                // Ítems
+                foreach (DataRow row in ticket.Rows)
+                {
+                    string desc     = row["Descripcion"].ToString();
+                    string talla    = row["Talla"].ToString();
+                    int    cant     = Convert.ToInt32(row["Cant"]);
+                    decimal sub     = Convert.ToDecimal(row["Subtotal"]);
+                    decimal precio  = Convert.ToDecimal(row["Precio"]);
+
+                    // Descripción (truncar si es muy larga)
+                    if (desc.Length > 20) desc = desc.Substring(0, 20);
+                    if (!string.IsNullOrWhiteSpace(talla)) desc += $" T:{talla}";
+
+                    g.DrawString(desc,              fNormal, negro, x,       y);
+                    g.DrawString(cant.ToString(),   fNormal, negro, x + 160, y);
+                    g.DrawString($"${sub:N2}",      fNormal, negro, x + 200, y);
+                    y += 14;
+
+                    // Precio unitario
+                    g.DrawString($"  @ ${precio:N2} c/u", fSmall, Brushes.Gray, x, y);
+                    y += 13;
+                }
+
+                g.DrawString(linea, fSmall, negro, x, y); y += 14;
+
+                // Total
+                string totalStr = $"TOTAL:  ${total:N2}";
+                SizeF szT = g.MeasureString(totalStr, fBold);
+                g.DrawString(totalStr, fBold, negro, x + (ancho - szT.Width) / 2, y);
+                y += szT.Height + 10;
+
+                // Pie
+                g.DrawString(linea, fSmall, negro, x, y); y += 14;
+                string pie = "¡Gracias por su compra!";
+                SizeF szP = g.MeasureString(pie, fSmall);
+                g.DrawString(pie, fSmall, negro, x + (ancho - szP.Width) / 2, y);
+
+                fTitulo.Dispose(); fNormal.Dispose(); fBold.Dispose(); fSmall.Dispose();
+            };
+
+            using (PrintPreviewDialog preview = new PrintPreviewDialog())
+            {
+                preview.Document = doc;
+                preview.Width    = 420;
+                preview.Height   = 700;
+                preview.ShowDialog(this);
+            }
+        }
+
+        // ── Venta a crédito ───────────────────────────────────────────────────
+        private void BtnFiado_Click(object sender, EventArgs e)
+        {
+            if (dtTicket.Rows.Count == 0)
+            {
+                MostrarMensaje("El ticket está vacío.", esError: true);
+                return;
+            }
+
+            decimal total = 0;
+            foreach (DataRow row in dtTicket.Rows)
+                total += Convert.ToDecimal(row["Subtotal"]);
+
+            decimal subtotalBase = total;
+            decimal recargo      = Math.Round(subtotalBase * 0.10m, 2);
+            total                = subtotalBase + recargo;
+
+            int clienteId = SeleccionarCliente(out string clienteNombre);
+            if (clienteId == -1) return;
+
+            if (MessageBox.Show(
+                $"Registrar venta a CRÉDITO:\n\nCliente:   {clienteNombre}\nSubtotal:  {subtotalBase:C2}\nRecargo (10%): {recargo:C2}\nTotal:     {total:C2}\n\n¿Confirmar?",
+                "Confirmar crédito",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+            try
+            {
+                using (MySqlConnection conn = ConexionBD.ObtenerConexion())
+                {
+                    conn.Open();
+                    using (MySqlTransaction tx = conn.BeginTransaction())
+                    {
+                        MySqlCommand cmdV = new MySqlCommand(
+                            "INSERT INTO ventas (Fecha, Total, Tienda) VALUES (@f, @t, @tienda)", conn, tx);
+                        cmdV.Parameters.AddWithValue("@f",     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                        cmdV.Parameters.AddWithValue("@t",     total);
+                        cmdV.Parameters.AddWithValue("@tienda", Config.NombreTienda);
+                        cmdV.ExecuteNonQuery();
+                        long ventaId = cmdV.LastInsertedId;
+
+                        foreach (DataRow row in dtTicket.Rows)
+                        {
+                            int     pid      = Convert.ToInt32(row["ProductoId"]);
+                            int     cantidad = Convert.ToInt32(row["Cant"]);
+                            decimal precio   = Convert.ToDecimal(row["Precio"]);
+                            decimal subtotal = Convert.ToDecimal(row["Subtotal"]);
+
+                            MySqlCommand cmdChk = new MySqlCommand(
+                                "SELECT Unidades FROM productos WHERE Id=@id", conn, tx);
+                            cmdChk.Parameters.AddWithValue("@id", pid);
+                            int stockActual = Convert.ToInt32(cmdChk.ExecuteScalar());
+
+                            if (cantidad > stockActual)
+                            {
+                                tx.Rollback();
+                                MessageBox.Show(
+                                    $"Stock insuficiente para '{row["Descripcion"]}'. Disponible: {stockActual}.",
+                                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                return;
+                            }
+
+                            MySqlCommand cmdD = new MySqlCommand(@"
+                                INSERT INTO detalle_ventas
+                                    (VentaId,ProductoId,Descripcion,Talla,Cantidad,PrecioUnitario,Subtotal)
+                                VALUES (@v,@p,@d,@ta,@c,@pr,@s)", conn, tx);
+                            cmdD.Parameters.AddWithValue("@v",  ventaId);
+                            cmdD.Parameters.AddWithValue("@p",  pid);
+                            cmdD.Parameters.AddWithValue("@d",  row["Descripcion"].ToString());
+                            cmdD.Parameters.AddWithValue("@ta", row["Talla"].ToString());
+                            cmdD.Parameters.AddWithValue("@c",  cantidad);
+                            cmdD.Parameters.AddWithValue("@pr", precio);
+                            cmdD.Parameters.AddWithValue("@s",  subtotal);
+                            cmdD.ExecuteNonQuery();
+
+                            MySqlCommand cmdU = new MySqlCommand(
+                                "UPDATE productos SET Unidades=Unidades-@c WHERE Id=@id", conn, tx);
+                            cmdU.Parameters.AddWithValue("@c",  cantidad);
+                            cmdU.Parameters.AddWithValue("@id", pid);
+                            cmdU.ExecuteNonQuery();
+                        }
+
+                        // Registrar el crédito
+                        MySqlCommand cmdCred = new MySqlCommand(@"
+                            INSERT INTO creditos (ClienteId, VentaId, Fecha, Total, Abonado, Estado)
+                            VALUES (@cli, @vid, @f, @tot, 0, 'Pendiente')", conn, tx);
+                        cmdCred.Parameters.AddWithValue("@cli", clienteId);
+                        cmdCred.Parameters.AddWithValue("@vid", ventaId);
+                        cmdCred.Parameters.AddWithValue("@f",   DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                        cmdCred.Parameters.AddWithValue("@tot", total);
+                        cmdCred.ExecuteNonQuery();
+
+                        // Sumar la deuda al campo Valor del cliente
+                        MySqlCommand cmdCli = new MySqlCommand(
+                            "UPDATE clientes SET Valor = Valor + @tot WHERE Id = @id", conn, tx);
+                        cmdCli.Parameters.AddWithValue("@tot", total);
+                        cmdCli.Parameters.AddWithValue("@id",  clienteId);
+                        cmdCli.ExecuteNonQuery();
+
+                        tx.Commit();
+                    }
+                }
+
+                DataTable ticketCopia = dtTicket.Copy();
+                dtTicket.Rows.Clear();
+
+                MessageBox.Show(
+                    $"Crédito registrado.\nCliente: {clienteNombre}\nSubtotal: {subtotalBase:C2}\nRecargo (10%): {recargo:C2}\nTotal:   {total:C2}",
+                    "Crédito registrado", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                if (MessageBox.Show("¿Desea imprimir la factura?", "Imprimir",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    ImprimirFactura(ticketCopia, total);
+
+                ActualizarTotales();
+                ActualizarBarraEdicion();
+                txtBarcode.Focus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al registrar crédito: " + ex.Message,
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private int SeleccionarCliente(out string nombre)
+        {
+            nombre = "";
+            int resultado = -1;
+            string nombreLocal = "";
+
+            Form dlg = new Form
+            {
+                Text            = "Seleccionar Cliente",
+                Size            = new Size(500, 420),
+                StartPosition   = FormStartPosition.CenterParent,
+                BackColor       = Color.FromArgb(22, 22, 38),
+                ForeColor       = Color.FromArgb(240, 240, 255),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox     = false,
+                MinimizeBox     = false,
+                Font            = new Font("Segoe UI", 10)
+            };
+
+            Label lbl = new Label
+            {
+                Text      = "Buscar cliente (cédula o nombre):",
+                ForeColor = Color.FromArgb(140, 140, 165),
+                Location  = new Point(16, 14),
+                AutoSize  = true
+            };
+
+            TextBox txtBuscar = new TextBox
+            {
+                Location    = new Point(16, 36),
+                Size        = new Size(348, 28),
+                BackColor   = Color.FromArgb(30, 30, 50),
+                ForeColor   = Color.FromArgb(240, 240, 255),
+                BorderStyle = BorderStyle.FixedSingle,
+                Font        = new Font("Segoe UI", 10)
+            };
+
+            DataGridView dgv = new DataGridView
+            {
+                Location            = new Point(16, 76),
+                Size                = new Size(456, 240),
+                BackgroundColor     = Color.FromArgb(30, 30, 50),
+                GridColor           = Color.FromArgb(50, 50, 75),
+                BorderStyle         = BorderStyle.None,
+                RowHeadersVisible   = false,
+                AllowUserToAddRows  = false,
+                ReadOnly            = true,
+                SelectionMode       = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect         = false,
+                Font                = new Font("Segoe UI", 9),
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                ColumnHeadersHeight = 30
+            };
+            dgv.ColumnHeadersDefaultCellStyle.BackColor        = Color.FromArgb(18, 18, 32);
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor        = Color.FromArgb(183, 28, 90);
+            dgv.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(18, 18, 32);
+            dgv.DefaultCellStyle.BackColor                     = Color.FromArgb(30, 30, 50);
+            dgv.DefaultCellStyle.ForeColor                     = Color.FromArgb(240, 240, 255);
+            dgv.DefaultCellStyle.SelectionBackColor            = Color.FromArgb(183, 28, 90);
+            dgv.DefaultCellStyle.SelectionForeColor            = Color.White;
+            dgv.EnableHeadersVisualStyles                      = false;
+            dgv.RowTemplate.Height                             = 32;
+
+            Button btnSel = new Button
+            {
+                Text      = "Seleccionar",
+                Location  = new Point(16, 330),
+                Size      = new Size(220, 40),
+                BackColor = Color.FromArgb(183, 28, 90),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font      = new Font("Segoe UI", 10, FontStyle.Bold),
+                Cursor    = Cursors.Hand
+            };
+            btnSel.FlatAppearance.BorderSize = 0;
+
+            Button btnCancelar = new Button
+            {
+                Text      = "Cancelar",
+                Location  = new Point(252, 330),
+                Size      = new Size(220, 40),
+                BackColor = Color.FromArgb(50, 50, 75),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font      = new Font("Segoe UI", 10),
+                Cursor    = Cursors.Hand
+            };
+            btnCancelar.FlatAppearance.BorderSize = 0;
+            btnCancelar.Click += (s, e) => dlg.Close();
+
+            Action<string> cargar = (filtro) =>
+            {
+                try
+                {
+                    using var conn = ConexionBD.ObtenerConexion();
+                    conn.Open();
+                    string sql = "SELECT Id, Cedula, Nombre, Telefono FROM clientes";
+                    if (!string.IsNullOrWhiteSpace(filtro))
+                        sql += " WHERE Cedula LIKE @f OR Nombre LIKE @f";
+                    sql += " ORDER BY Nombre LIMIT 50";
+                    using var cmd = new MySqlCommand(sql, conn);
+                    if (!string.IsNullOrWhiteSpace(filtro))
+                        cmd.Parameters.AddWithValue("@f", $"%{filtro}%");
+                    var dt = new DataTable();
+                    new MySqlDataAdapter(cmd).Fill(dt);
+                    dgv.DataSource = dt;
+                    if (dgv.Columns.Count > 0)
+                    {
+                        dgv.Columns["Id"].Visible          = false;
+                        dgv.Columns["Cedula"].HeaderText   = "Cédula";
+                        dgv.Columns["Nombre"].HeaderText   = "Nombre";
+                        dgv.Columns["Telefono"].HeaderText = "Teléfono";
+                    }
+                }
+                catch { }
+            };
+
+            txtBuscar.TextChanged += (s, e) => cargar(txtBuscar.Text.Trim());
+
+            Button btnNuevoCliente = new Button
+            {
+                Text      = "+ Nuevo",
+                Location  = new Point(370, 36),
+                Size      = new Size(102, 28),
+                BackColor = Color.FromArgb(183, 28, 90),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font      = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor    = Cursors.Hand
+            };
+            btnNuevoCliente.FlatAppearance.BorderSize = 0;
+            btnNuevoCliente.Click += (s, e) =>
+            {
+                Form dlgNuevo = new Form
+                {
+                    Text            = "Nuevo Cliente",
+                    Size            = new Size(360, 265),
+                    StartPosition   = FormStartPosition.CenterParent,
+                    BackColor       = Color.FromArgb(22, 22, 38),
+                    ForeColor       = Color.FromArgb(240, 240, 255),
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    MaximizeBox     = false,
+                    MinimizeBox     = false,
+                    Font            = new Font("Segoe UI", 10)
+                };
+
+                TextBox MkTxt(int y) => new TextBox {
+                    Location = new Point(16, y), Size = new Size(310, 28),
+                    BackColor = Color.FromArgb(30, 30, 50), ForeColor = Color.FromArgb(240, 240, 255),
+                    BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 10)
+                };
+                Label MkLbl(string t, int y) => new Label {
+                    Text = t, ForeColor = Color.FromArgb(140, 140, 165),
+                    Location = new Point(16, y), AutoSize = true
+                };
+
+                var lblCed = MkLbl("Cédula:",    14);  var txtCed = MkTxt(32);
+                var lblNom = MkLbl("Nombre:",    72);  var txtNom = MkTxt(90);
+                var lblTel = MkLbl("Teléfono:", 130);  var txtTel = MkTxt(148);
+
+                Button btnOk = new Button {
+                    Text = "Guardar", Location = new Point(16, 196), Size = new Size(148, 36),
+                    BackColor = Color.FromArgb(183, 28, 90), ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                    Cursor = Cursors.Hand
+                };
+                btnOk.FlatAppearance.BorderSize = 0;
+                btnOk.Click += (s2, e2) =>
+                {
+                    if (string.IsNullOrWhiteSpace(txtCed.Text) || string.IsNullOrWhiteSpace(txtNom.Text))
+                    { MessageBox.Show("Cédula y Nombre son obligatorios.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    try
+                    {
+                        using var conn = ConexionBD.ObtenerConexion();
+                        conn.Open();
+                        using var cmd = new MySqlCommand(
+                            "INSERT INTO clientes (Cedula, Nombre, Telefono) VALUES (@c,@n,@t)", conn);
+                        cmd.Parameters.AddWithValue("@c", txtCed.Text.Trim());
+                        cmd.Parameters.AddWithValue("@n", txtNom.Text.Trim());
+                        cmd.Parameters.AddWithValue("@t", txtTel.Text.Trim());
+                        cmd.ExecuteNonQuery();
+                        dlgNuevo.Close();
+                        cargar(txtBuscar.Text.Trim());
+                    }
+                    catch (Exception ex) { MessageBox.Show("Error: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+                };
+
+                Button btnCan = new Button {
+                    Text = "Cancelar", Location = new Point(174, 196), Size = new Size(148, 36),
+                    BackColor = Color.FromArgb(50, 50, 75), ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10), Cursor = Cursors.Hand
+                };
+                btnCan.FlatAppearance.BorderSize = 0;
+                btnCan.Click += (s2, e2) => dlgNuevo.Close();
+
+                dlgNuevo.Controls.AddRange(new Control[]
+                    { lblCed, txtCed, lblNom, txtNom, lblTel, txtTel, btnOk, btnCan });
+                dlgNuevo.ShowDialog(dlg);
+            };
+
+            btnSel.Click += (s, e) =>
+            {
+                if (dgv.SelectedRows.Count == 0) return;
+                resultado   = Convert.ToInt32(dgv.SelectedRows[0].Cells["Id"].Value);
+                nombreLocal = dgv.SelectedRows[0].Cells["Nombre"].Value?.ToString() ?? "";
+                dlg.Close();
+            };
+
+            dgv.DoubleClick += (s, e) => btnSel.PerformClick();
+
+            dlg.Controls.AddRange(new Control[] { lbl, txtBuscar, btnNuevoCliente, dgv, btnSel, btnCancelar });
+            cargar("");
+            dlg.ShowDialog(this);
+            nombre = nombreLocal;
+            return resultado;
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
